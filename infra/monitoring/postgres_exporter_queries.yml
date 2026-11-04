@@ -1,0 +1,97 @@
+# FeeDesk monitoring queries for postgres_exporter.
+#
+# Template only. Uses the legacy --extend.query-path format (deprecated upstream
+# but still supported in v0.15.x). Validate against the exporter version you
+# deploy; do not paste database passwords here. Use a read-only monitoring role
+# with pg_monitor and SELECT on the FeeDesk tables.
+#
+# Run:
+#   postgres_exporter \
+#     --extend.query-path=/etc/feedesk/postgres_exporter_queries.yml \
+#     --datasource.uri=postgresql://feedesk_monitor@db:5432/feedesk?sslmode=disable
+#
+# The resulting metric names are feedesk_messaging_*.
+
+feedesk_messaging:
+  query: |
+    SELECT
+      count(*) FILTER (WHERE status IN ('pending', 'retry')) AS pending_jobs,
+      count(*) FILTER (WHERE status = 'claimed') AS claimed_jobs,
+      count(*) FILTER (
+        WHERE status = 'claimed'
+          AND (lease_expires_at IS NULL OR lease_expires_at < now())
+      ) AS stale_claimed_jobs,
+      count(*) FILTER (
+        WHERE status = 'failed'
+          AND updated_at > now() - interval '24 hours'
+      ) AS failed_jobs_24h,
+      COALESCE(
+        EXTRACT(EPOCH FROM (
+          now() - min(created_at) FILTER (WHERE status IN ('pending', 'retry'))
+        )),
+        0
+      ) AS oldest_pending_job_age_seconds
+    FROM send_jobs
+  master: true
+  cache_seconds: 15
+  metrics:
+    - pending_jobs:
+        usage: "GAUGE"
+        description: "Send jobs waiting to be claimed (pending or retry)."
+    - claimed_jobs:
+        usage: "GAUGE"
+        description: "Send jobs currently claimed by a worker lease."
+    - stale_claimed_jobs:
+        usage: "GAUGE"
+        description: "Claimed jobs whose lease has expired (worker may be dead)."
+    - failed_jobs_24h:
+        usage: "GAUGE"
+        description: "Send jobs that reached failed in the last 24 hours."
+    - oldest_pending_job_age_seconds:
+        usage: "GAUGE"
+        description: "Age in seconds of the oldest pending/retry send job."
+
+feedesk_messages:
+  query: |
+    SELECT
+      count(*) FILTER (
+        WHERE internal_status = 'unknown'
+          AND updated_at > now() - interval '24 hours'
+      ) AS unknown_messages_24h,
+      count(*) FILTER (
+        WHERE internal_status = 'failed'
+          AND updated_at > now() - interval '24 hours'
+      ) AS failed_messages_24h,
+      count(*) FILTER (
+        WHERE internal_status = 'submitting'
+          AND updated_at < now() - interval '10 minutes'
+      ) AS stuck_submitting_messages
+    FROM messages
+  master: true
+  cache_seconds: 15
+  metrics:
+    - unknown_messages_24h:
+        usage: "GAUGE"
+        description: "Messages with an unknown provider outcome in the last 24 hours."
+    - failed_messages_24h:
+        usage: "GAUGE"
+        description: "Messages that failed in the last 24 hours."
+    - stuck_submitting_messages:
+        usage: "GAUGE"
+        description: "Messages stuck in submitting for more than 10 minutes."
+
+feedesk_uploads:
+  query: |
+    SELECT
+      count(*) AS file_count,
+      COALESCE(sum(file_size), 0) AS total_bytes
+    FROM source_files
+  master: true
+  cache_seconds: 60
+  metrics:
+    - file_count:
+        usage: "GAUGE"
+        description: "Rows in source_files (stored private imports)."
+    - total_bytes:
+        usage: "GAUGE"
+        description: "Sum of recorded upload sizes in bytes."

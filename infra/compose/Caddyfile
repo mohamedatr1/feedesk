@@ -1,0 +1,52 @@
+# FeeDesk HTTPS reverse proxy (Caddy 2).
+# APP_DOMAIN must be a bare hostname such as feedesk.example.org, without a
+# scheme or trailing slash. Caddy obtains and renews the certificate; in a
+# local-only test APP_DOMAIN=localhost uses Caddy's internal CA and browsers
+# will warn. See docs/runbooks/deploy-rollback.md.
+
+{$APP_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	# Access logging is intentionally disabled here: the Caddy JSON access log
+	# would record query strings. The API JSON logger records method/path only
+	# (no query) and structured application logs; use those plus monitoring.
+	# Re-enable only after a redaction filter for `q`/`Referer` is validated.
+
+	# Readiness probes are routed to the API for external uptime monitoring.
+	handle /health/* {
+		reverse_proxy api:8000 {
+			# Overwrite, do not append, so a client cannot spoof its source IP.
+			header_up X-Forwarded-For {remote_host}
+		}
+	}
+
+	# All other HTTP traffic goes to Next.js. Next.js rewrites /api/* to the
+	# API over the private Docker network, so the API is not otherwise published.
+	handle {
+		reverse_proxy web:3000 {
+			header_up X-Forwarded-For {remote_host}
+			health_uri /
+			health_interval 30s
+			health_timeout 5s
+		}
+	}
+}
+
+# Plain HTTP is used only for redirects and the container health check.
+:80 {
+	handle /healthz {
+		respond "ok" 200
+	}
+	handle {
+		redir https://{host}{uri} 308
+	}
+}

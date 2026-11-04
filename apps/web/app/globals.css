@@ -1,0 +1,392 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --fd-bg: #f9f7f4;
+  --fd-surface: #fdfcfa;
+  --fd-surface-alt: #f4f2ec;
+  --fd-sidebar: #efeee8;
+  --fd-line: #e4e0d6;
+  --fd-line-strong: #d6d1c4;
+  --fd-line-input: #96907f;
+  --fd-ink: #1d1d23;
+  --fd-ink-muted: #5d6060;
+  --fd-ink-subtle: #6b6f6c;
+  --fd-brand: #314c3b;
+  --fd-brand-strong: #243b2d;
+  --fd-brand-soft: #e7eee7;
+  --fd-green: #3e6b4f;
+  --fd-green-soft: #e4efe5;
+  --fd-green-text: #2f5a3d;
+  --fd-amber: #a78e66;
+  --fd-amber-soft: #f7ebd6;
+  --fd-amber-text: #7a5a24;
+  --fd-red: #c0392b;
+  --fd-red-soft: #f9e1de;
+  --fd-red-text: #8f2d22;
+  --fd-focus: #314c3b;
+  --fd-radius-card: 16px;
+  --fd-radius-control: 10px;
+  --fd-shadow: 0 1px 2px rgba(29, 29, 35, 0.04);
+  --fd-shadow-pop: 0 8px 24px rgba(29, 29, 35, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--fd-bg);
+  color: var(--fd-ink);
+  font-family: var(--font-arabic), "Noto Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--fd-focus);
+  outline-offset: 2px;
+}
+
+@layer components {
+  .fd-app {
+    @apply min-h-screen bg-[var(--fd-bg)] text-[var(--fd-ink)];
+  }
+
+  .fd-shell {
+    @apply flex min-h-screen;
+  }
+
+  .fd-sidebar {
+    @apply flex w-[240px] shrink-0 flex-col border-l border-[var(--fd-line)] bg-[var(--fd-sidebar)] px-4 py-5;
+  }
+
+  .fd-main {
+    @apply min-w-0 flex-1;
+  }
+
+  .fd-content {
+    @apply mx-auto w-full max-w-[1440px] px-4 pb-10 sm:px-6;
+  }
+
+  .fd-topbar {
+    @apply flex min-h-[64px] flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-[var(--fd-line)] px-4 py-2 sm:px-6;
+  }
+
+  .fd-card {
+    @apply rounded-[var(--fd-radius-card)] border border-[var(--fd-line)] bg-[var(--fd-surface)] shadow-[var(--fd-shadow)];
+  }
+
+  .fd-card-pad {
+    @apply p-5;
+  }
+
+  .fd-btn {
+    @apply inline-flex h-10 items-center justify-center gap-2 rounded-[var(--fd-radius-control)] border px-4 text-sm font-medium transition;
+  }
+
+  .fd-btn-primary {
+    @apply border-[var(--fd-brand)] bg-[var(--fd-brand)] text-white hover:bg-[var(--fd-brand-strong)];
+  }
+
+  .fd-btn-secondary {
+    @apply border-[var(--fd-line-strong)] bg-transparent text-[var(--fd-ink)] hover:bg-[var(--fd-surface-alt)];
+  }
+
+  .fd-btn-ghost {
+    @apply border-transparent bg-transparent text-[var(--fd-ink-muted)] hover:bg-[var(--fd-surface-alt)] hover:text-[var(--fd-ink)];
+  }
+
+  .fd-btn-danger {
+    @apply border-[var(--fd-red)] bg-[var(--fd-red)] text-white hover:bg-[var(--fd-red-text)];
+  }
+
+  .fd-btn:disabled {
+    @apply cursor-not-allowed opacity-50;
+  }
+
+  .fd-dialog {
+    @apply m-auto w-[min(32rem,90vw)] max-h-[90vh] overflow-y-auto rounded-[var(--fd-radius-card)] border border-[var(--fd-line)] bg-[var(--fd-surface)] p-5 text-[var(--fd-ink)] shadow-[var(--fd-shadow-pop)];
+  }
+
+  .fd-dialog::backdrop {
+    background: rgba(29, 29, 35, 0.35);
+  }
+
+  .fd-input {
+    @apply h-10 w-full rounded-[var(--fd-radius-control)] border border-[var(--fd-line-input)] bg-[var(--fd-surface)] px-3 text-sm text-[var(--fd-ink)] transition placeholder:text-[var(--fd-ink-subtle)];
+  }
+
+  .fd-label {
+    @apply mb-1.5 block text-[13px] font-medium text-[var(--fd-ink-muted)];
+  }
+
+  .fd-pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+
+  .fd-pill-neutral {
+    @apply bg-[var(--fd-surface-alt)] text-[var(--fd-ink-muted)];
+  }
+
+  .fd-pill-amber {
+    @apply bg-[var(--fd-amber-soft)] text-[var(--fd-amber-text)];
+  }
+
+  .fd-pill-green {
+    @apply bg-[var(--fd-green-soft)] text-[var(--fd-green-text)];
+  }
+
+  .fd-pill-red {
+    @apply bg-[var(--fd-red-soft)] text-[var(--fd-red-text)];
+  }
+
+  .fd-table {
+    @apply w-full border-collapse text-right text-[13px];
+  }
+
+  .fd-table-wrap {
+    @apply max-w-full overflow-x-auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .fd-table th {
+    @apply border-b border-[var(--fd-line)] bg-[var(--fd-surface-alt)] px-4 py-3 text-xs font-medium text-[var(--fd-ink-muted)];
+  }
+
+  .fd-table td {
+    @apply border-b border-[var(--fd-line)] px-4 py-3 align-middle;
+  }
+
+  .fd-table tr:last-child td {
+    @apply border-b-0;
+  }
+
+  .fd-nav-item {
+    @apply flex h-11 items-center gap-3 rounded-[var(--fd-radius-control)] px-3 text-sm font-medium text-[var(--fd-ink-muted)] transition;
+  }
+
+  .fd-nav-item:hover {
+    @apply bg-white/60 text-[var(--fd-ink)];
+  }
+
+  .fd-nav-item-active {
+    @apply bg-[var(--fd-brand)] text-white hover:bg-[var(--fd-brand)] hover:text-white;
+  }
+
+  .fd-nav-item-disabled {
+    @apply cursor-not-allowed opacity-55 hover:bg-transparent hover:text-[var(--fd-ink-muted)];
+  }
+
+  .fd-stat-value {
+    @apply text-[24px] font-bold leading-tight tracking-tight text-[var(--fd-ink)] sm:text-[30px];
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+
+  .fd-skeleton {
+    @apply animate-pulse rounded-lg bg-[var(--fd-surface-alt)];
+  }
+}
+
+/* Form fields keep a real 2px outline: the 1px border alone is too quiet,
+   and the old brand-soft ring was effectively invisible (1.15:1). */
+.fd-input:focus-visible {
+  outline: 2px solid var(--fd-brand);
+  outline-offset: 1px;
+  border-color: var(--fd-brand);
+  box-shadow: none;
+}
+
+.fd-skip-link {
+  position: fixed;
+  inset-inline-start: 1rem;
+  top: -4rem;
+  z-index: 60;
+  display: inline-flex;
+  height: 2.75rem;
+  align-items: center;
+  border-radius: var(--fd-radius-control);
+  background: var(--fd-brand);
+  padding-inline: 1rem;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  box-shadow: var(--fd-shadow-pop);
+  transition: top 120ms ease;
+}
+
+.fd-skip-link:focus {
+  top: 1rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fd-skeleton {
+    animation: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 1023px) {
+  .fd-sidebar {
+    position: fixed;
+    inset-block: 0;
+    inset-inline-start: 0;
+    width: min(18rem, 84vw);
+    max-width: 84vw;
+    z-index: 50;
+    padding: 1.25rem 1rem;
+    box-shadow: var(--fd-shadow-pop);
+    transform: translateX(0);
+    transition: transform 220ms ease;
+    overflow-y: auto;
+  }
+
+  .fd-shell:not(.fd-nav-open) .fd-sidebar {
+    display: none;
+  }
+
+  .fd-shell.fd-nav-open .fd-sidebar {
+    display: flex;
+  }
+
+  .fd-nav-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 49;
+    background: rgb(29 29 35 / 0.35);
+  }
+
+  .fd-shell:not(.fd-nav-open) .fd-nav-backdrop {
+    display: none;
+  }
+
+  .fd-content {
+    padding-inline: 12px;
+  }
+
+  .fd-topbar {
+    padding-inline: 12px;
+  }
+
+  .fd-card-pad {
+    padding: 1rem;
+  }
+
+  .fd-btn {
+    min-height: 44px;
+  }
+
+  .fd-input {
+    min-height: 44px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .fd-nav-backdrop,
+  .fd-menu-button {
+    display: none !important;
+  }
+}
+
+@media (pointer: coarse) {
+  .fd-btn,
+  .fd-input {
+    min-height: 44px;
+  }
+
+  .fd-nav-item {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 640px) {
+  .fd-stat-value {
+    font-size: 22px;
+  }
+
+  .fd-sidebar {
+    width: min(20rem, 88vw);
+    max-width: 88vw;
+  }
+}
+
+/* On phones, table cells wrap instead of forcing a minimum table width. */
+@media (max-width: 640px) {
+  .fd-table th,
+  .fd-table td {
+    padding-inline: 8px;
+  }
+  .fd-table th,
+  .fd-table td {
+    overflow-wrap: anywhere;
+  }
+
+  .fd-table td p,
+  .fd-table td span {
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Prevent accidental page-level horizontal scroll from wide tables. */
+html,
+body {
+  overflow-x: clip;
+}
+
+img,
+table {
+  max-width: 100%;
+}
+
+.fd-card,
+.fd-main,
+.fd-shell {
+  min-width: 0;
+}
+
+.fd-table-wrap,
+.overflow-x-auto {
+  max-width: 100%;
+}
+
+/* Long Arabic titles, filenames and phone numbers must wrap, not overflow. */
+.fd-card *,
+p,
+h1,
+h2,
+h3 {
+  overflow-wrap: break-word;
+}

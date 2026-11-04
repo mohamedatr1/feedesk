@@ -1,0 +1,13 @@
+[Unit]
+Description=Run the FeeDesk backup nightly
+Documentation=file:/opt/feedesk/docs/runbooks/backup-restore.md
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+RandomizedDelaySec=15m
+AccuracySec=1m
+Unit=feedesk-backup.service
+
+[Install]
+WantedBy=timers.target

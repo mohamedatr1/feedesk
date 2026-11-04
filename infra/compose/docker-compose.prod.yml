@@ -1,0 +1,206 @@
+# FeeDesk production-like topology (pre-G4 scaffolding).
+#
+# This file is a template. It has NOT been deployed or verified on a
+# production host. Use it for a single-server Docker Compose deployment:
+#
+#   cp infra/compose/.env.production.example infra/compose/.env.production
+#   # edit placeholders, keep it out of source control
+#   docker compose \
+#     --env-file infra/compose/.env.production \
+#     -f infra/compose/docker-compose.prod.yml \
+#     up -d --build
+#
+# No database port is published. Postgres is reachable only on the
+# internal "backend" network. TLS terminates at Caddy on ports 80/443.
+# The worker uses the fake provider and messaging is off by default.
+
+name: feedesk-prod
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-api-environment: &api-environment
+  APP_ENV: production
+  DATABASE_URL: postgresql+psycopg://feedesk:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/feedesk
+  SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+  PROVIDER_CREDENTIAL_KEY: ${PROVIDER_CREDENTIAL_KEY:?PROVIDER_CREDENTIAL_KEY is required}
+  APP_BASE_URL: https://${APP_DOMAIN:?APP_DOMAIN is required}
+  API_BASE_URL: https://${APP_DOMAIN}
+  UPLOAD_DIR: /data/uploads
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  # Behind the HTTPS reverse proxy. __Host- requires Secure + Path=/ and no Domain.
+  COOKIE_NAME: __Host-fd_session
+  COOKIE_SECURE: "true"
+  # Caddy overwrites X-Forwarded-For; do not enable this if the proxy is bypassed.
+  TRUST_FORWARDED_FOR: "true"
+  # Provider credentials are placeholders. Do not add live keys to this file.
+  RASEL_API_KEY: ${RASEL_API_KEY:-}
+  RASEL_BASE_URL: ${RASEL_BASE_URL:-https://raselsms.com}
+  RASEL_CHANNEL: ${RASEL_CHANNEL:-local_sms}
+  RASEL_SENDER_ID: ${RASEL_SENDER_ID:-}
+  # Messaging safety defaults: fake provider, disabled, kill switch on.
+  MESSAGING_PROVIDER: ${MESSAGING_PROVIDER:-fake}
+  MESSAGING_ENABLED: ${MESSAGING_ENABLED:-false}
+  MESSAGING_KILL_SWITCH: ${MESSAGING_KILL_SWITCH:-true}
+  MESSAGING_RATE_LIMIT_PER_SECOND: ${MESSAGING_RATE_LIMIT_PER_SECOND:-1}
+  MESSAGING_MAX_ATTEMPTS: ${MESSAGING_MAX_ATTEMPTS:-3}
+  MESSAGING_LEASE_SECONDS: ${MESSAGING_LEASE_SECONDS:-60}
+  MESSAGING_ALLOWLIST: ${MESSAGING_ALLOWLIST:-}
+  MESSAGING_ALLOW_FAKE_IN_PRODUCTION: ${MESSAGING_ALLOW_FAKE_IN_PRODUCTION:-false}
+  FAKE_PROVIDER_SCENARIO: ${FAKE_PROVIDER_SCENARIO:-delivered}
+  SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:-admin}
+  SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?SEED_ADMIN_PASSWORD is required}
+  SEED_SCHOOL_NAME: ${SEED_SCHOOL_NAME:-مدرسة الروض الخاصة}
+  SEED_CURRENCY: ${SEED_CURRENCY:-SYP}
+  SEED_CURRENCY_SYMBOL: ${SEED_CURRENCY_SYMBOL:-د.س}
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: feedesk
+      POSTGRES_USER: feedesk
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U feedesk -d feedesk"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - backend
+    logging: *default-logging
+    # Intentionally no "ports": the database is not exposed to the host.
+
+  api:
+    build:
+      context: ../../apps/api
+    restart: unless-stopped
+    init: true
+    environment: *api-environment
+    command: >
+      sh -c "alembic upgrade head &&
+             python -m app.seed &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --no-access-log"
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    networks:
+      - app
+      - backend
+    logging: *default-logging
+
+  worker:
+    build:
+      context: ../../apps/api
+    restart: unless-stopped
+    init: true
+    environment: *api-environment
+    # The worker is the only process allowed to claim and send messages.
+    # Safe default: fake provider, MESSAGING_ENABLED=false, kill switch on.
+    command: ["python", "-m", "app.worker"]
+    depends_on:
+      db:
+        condition: service_healthy
+      # Ensure migrations/seed have finished before the worker starts.
+      api:
+        condition: service_healthy
+    healthcheck:
+      # Process liveness only; queue health is monitored separately.
+      # init: true makes tini PID 1, so scan all PIDs for the worker process.
+      test: ["CMD-SHELL", "grep -qs app.worker /proc/[0-9]*/cmdline"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - app
+      - backend
+    logging: *default-logging
+
+  web:
+    build:
+      context: ../../apps/web
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      API_INTERNAL_URL: http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - app
+    logging: *default-logging
+    # No host port: only Caddy reaches the web container.
+
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?APP_DOMAIN is required}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - app
+    logging: *default-logging
+
+volumes:
+  db_data:
+    name: feedesk_prod_db
+  uploads:
+    name: feedesk_prod_uploads
+  caddy_data:
+    name: feedesk_prod_caddy_data
+  caddy_config:
+    name: feedesk_prod_caddy_config
+
+networks:
+  # Egress-capable application network (proxy, web, api, worker).
+  app:
+    driver: bridge
+  # Database-only network, no external connectivity.
+  backend:
+    driver: bridge
+    internal: true

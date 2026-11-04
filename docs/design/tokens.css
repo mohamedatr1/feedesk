@@ -1,0 +1,42 @@
+/* FeeDesk design tokens — observed baseline from the approved dashboard.
+   Final values and contrast validation belong to the designer (DES-01). */
+
+:root {
+  --fd-bg: #f9f7f4;
+  --fd-surface: #fdfcfa;
+  --fd-surface-alt: #f4f2ec;
+  --fd-sidebar: #efeee8;
+  --fd-line: #e4e0d6;
+  --fd-line-strong: #d6d1c4;
+  --fd-line-input: #96907f; /* 3.11:1 on surface; form controls only */
+  --fd-ink: #1d1d23;
+  --fd-ink-muted: #5d6060;
+  --fd-ink-subtle: #6b6f6c;
+  --fd-brand: #314c3b;
+  --fd-brand-strong: #243b2d;
+  --fd-brand-soft: #e7eee7;
+  --fd-green: #3e6b4f;
+  --fd-green-soft: #e4efe5;
+  --fd-green-text: #2f5a3d;
+  --fd-amber: #a78e66;
+  --fd-amber-soft: #f7ebd6;
+  --fd-amber-text: #7a5a24;
+  --fd-red: #c0392b;
+  --fd-red-soft: #f9e1de;
+  --fd-red-text: #8f2d22;
+  --fd-focus: #314c3b;
+  --fd-radius-card: 16px;
+  --fd-radius-control: 10px;
+  --fd-shadow: 0 1px 2px rgba(29, 29, 35, 0.04);
+  --fd-shadow-pop: 0 8px 24px rgba(29, 29, 35, 0.08);
+}
+
+/* Typography
+   UI: IBM Plex Sans Arabic, weights 400/500/600/700.
+   Latin digits, tabular numerals; Arabic letters without artificial tracking.
+   Body 14px/1.6; table 13px/1.5; page title 30–32px/700; KPI 30–36px/700. */
+
+/* RTL
+   html dir="rtl"; logical properties; first table column on the right;
+   numeric columns tabular and aligned to inline-end; phone/ID values LTR-isolated.
+   Do not mirror the logo, checkmarks, or media icons. */

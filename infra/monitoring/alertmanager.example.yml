@@ -1,0 +1,21 @@
+# Alertmanager routing template (not deployed).
+#
+# Replace the receiver. Use an operations mailbox that is not the school's
+# shared inbox if possible. Do not route message bodies, phone numbers, or
+# guardian names into email subject lines.
+
+route:
+  receiver: feedesk-ops-email
+  group_by: [alertname, service]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  - name: feedesk-ops-email
+    email_configs:
+      - to: feedesk-ops@example.org
+        from: feedesk-alerts@example.org
+        smarthost: smtp.example.org:587
+        require_tls: true
+        send_resolved: true

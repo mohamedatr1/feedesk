@@ -1,0 +1,29 @@
+[Unit]
+Description=FeeDesk production-like Docker Compose stack
+Documentation=file:/opt/feedesk/docs/runbooks/deploy-rollback.md
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=feedesk
+Group=feedesk
+# The service user must be able to reach /var/run/docker.sock.
+SupplementaryGroups=docker
+WorkingDirectory=/opt/feedesk
+# Do not import the env file into systemd: Compose reads it via --env-file,
+# keeping secrets out of the unit environment and `systemctl show`.
+Environment=COMPOSE_PROJECT_NAME=feedesk-prod
+ExecStartPre=/usr/bin/docker compose --project-name feedesk-prod --env-file /etc/feedesk/feedesk.env -f /opt/feedesk/infra/compose/docker-compose.prod.yml config --quiet
+ExecStart=/usr/bin/docker compose --project-name feedesk-prod --env-file /etc/feedesk/feedesk.env -f /opt/feedesk/infra/compose/docker-compose.prod.yml up -d --remove-orphans
+ExecReload=/usr/bin/docker compose --project-name feedesk-prod --env-file /etc/feedesk/feedesk.env -f /opt/feedesk/infra/compose/docker-compose.prod.yml up -d --remove-orphans
+ExecStop=/usr/bin/docker compose --project-name feedesk-prod --env-file /etc/feedesk/feedesk.env -f /opt/feedesk/infra/compose/docker-compose.prod.yml stop
+TimeoutStartSec=300
+TimeoutStopSec=120
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

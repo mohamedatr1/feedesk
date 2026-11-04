@@ -1,0 +1,26 @@
+[Unit]
+Description=FeeDesk nightly PostgreSQL and uploads backup
+Documentation=file:/opt/feedesk/docs/runbooks/backup-restore.md
+Requires=docker.service
+After=docker.service
+ConditionPathExists=/etc/feedesk/backup.env
+
+[Service]
+Type=oneshot
+User=feedesk
+Group=feedesk
+SupplementaryGroups=docker
+WorkingDirectory=/opt/feedesk
+EnvironmentFile=/etc/feedesk/backup.env
+ExecStart=/usr/bin/python3 /opt/feedesk/scripts/feedesk_backup.py --execute
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=1800
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=-/var/backups/feedesk
+ReadWritePaths=-/var/lib/node_exporter/textfile

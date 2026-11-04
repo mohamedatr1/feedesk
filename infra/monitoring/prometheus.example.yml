@@ -1,0 +1,60 @@
+# Prometheus scrape configuration (template, not deployed).
+#
+# Requires:
+#   - blackbox_exporter (https module) for external probes
+#   - postgres_exporter with infra/monitoring/postgres_exporter_queries.yml
+#   - node_exporter on the Docker host
+#   - a read-only database role with pg_monitor and SELECT on FeeDesk tables
+#
+# Replace feedesk.example.org and exporter hostnames before use.
+
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+rule_files:
+  - alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  - job_name: feedesk-web-probe
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://feedesk.example.org/
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  - job_name: feedesk-api-probe
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://feedesk.example.org/health/ready
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  - job_name: feedesk-postgres
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+
+  - job_name: feedesk-node
+    static_configs:
+      - targets: ["node-exporter:9100"]

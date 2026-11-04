@@ -1,0 +1,47 @@
+# Loki ruler rules for FeeDesk API error monitoring (template, not deployed).
+#
+# Prerequisite: ship Caddy's JSON access log to Loki with the label
+# job="feedesk-caddy". The Caddyfile enables access logging to stdout.
+# This was NOT tested against a live Loki ruler.
+#
+# Phone numbers and names must never become labels. These rules aggregate only.
+
+groups:
+  - name: feedesk-api-errors
+    rules:
+      - alert: FeeDeskApi5xx
+        expr: |
+          sum(count_over_time({job="feedesk-caddy"} | json | status >= 500 [5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: feedesk-api
+        annotations:
+          summary: "FeeDesk returned more than 10 server errors in 5 minutes"
+          description: "Inspect API logs by request_id; do not copy guardian data into alert labels."
+
+      - alert: FeeDeskApi5xxRate
+        expr: |
+          (
+            sum(rate({job="feedesk-caddy"} | json | status >= 500 [5m]))
+            /
+            clamp_min(sum(rate({job="feedesk-caddy"} | json [5m])), 0.001)
+          ) > 0.02
+        for: 10m
+        labels:
+          severity: critical
+          service: feedesk-api
+        annotations:
+          summary: "FeeDesk 5xx rate above 2%"
+          description: "Check API readiness, database, and recent deployment. Roll back if it started after a deploy."
+
+      - alert: FeeDeskLoginFailures
+        expr: |
+          sum(count_over_time({job="feedesk-caddy"} | json | status == 401 [15m])) > 50
+        for: 5m
+        labels:
+          severity: warning
+          service: feedesk-auth
+        annotations:
+          summary: "Elevated FeeDesk authentication failures"
+          description: "Possible credential stuffing or a broken client. Check source IPs and account lockouts."

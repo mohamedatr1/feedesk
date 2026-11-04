@@ -1,0 +1,9 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "سجل العمليات — FeeDesk",
+};
+
+export default function AuditLayout({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
+}

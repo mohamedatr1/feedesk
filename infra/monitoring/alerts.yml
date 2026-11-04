@@ -1,0 +1,186 @@
+# FeeDesk alert rules (template, not deployed or tested).
+#
+# Thresholds are proposals for a single-school pilot (10-50 recipients per
+# campaign). Revisit after real pilot volume is known.
+#
+# The provider-balance rule depends on a metric that is not emitted yet: the
+# read-only balance preflight/exporter is blocked by G4. Until then, check the
+# balance manually per infra/monitoring/CHECKLIST.md.
+
+groups:
+  - name: feedesk-availability
+    rules:
+      - alert: FeeDeskWebDown
+        expr: probe_success{job="feedesk-web-probe"} == 0
+        for: 3m
+        labels:
+          severity: critical
+          service: feedesk-web
+        annotations:
+          summary: "FeeDesk web UI is unreachable"
+          description: "External probe of https://{{ $labels.instance }} has failed for 3 minutes."
+
+      - alert: FeeDeskApiNotReady
+        expr: probe_success{job="feedesk-api-probe"} == 0
+        for: 3m
+        labels:
+          severity: critical
+          service: feedesk-api
+        annotations:
+          summary: "FeeDesk API readiness probe failed"
+          description: "The API is up but not ready (database unavailable or probe failing)."
+
+      - alert: FeeDeskPostgresDown
+        expr: pg_up == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: feedesk-db
+        annotations:
+          summary: "PostgreSQL exporter cannot reach FeeDesk database"
+          description: "Check the db container and its health check before restarting anything."
+
+  - name: feedesk-queue
+    rules:
+      - alert: FeeDeskQueueBacklog
+        expr: feedesk_messaging_pending_jobs > 25
+        for: 10m
+        labels:
+          severity: warning
+          service: feedesk-worker
+        annotations:
+          summary: "FeeDesk send queue is backing up"
+          description: "More than 25 pending/retry jobs for 10 minutes. Check worker logs and provider status."
+
+      - alert: FeeDeskQueueCritical
+        expr: feedesk_messaging_pending_jobs > 100
+        for: 5m
+        labels:
+          severity: critical
+          service: feedesk-worker
+        annotations:
+          summary: "FeeDesk send queue is critically deep"
+          description: "More than 100 pending/retry jobs. Do not start a second worker without checking leases."
+
+      - alert: FeeDeskWorkerStalled
+        expr: feedesk_messaging_oldest_pending_job_age_seconds > 300
+        for: 5m
+        labels:
+          severity: critical
+          service: feedesk-worker
+        annotations:
+          summary: "FeeDesk worker is not claiming due jobs"
+          description: "Oldest pending job is older than 5 minutes. Use the worker recovery runbook."
+
+      - alert: FeeDeskStaleLeases
+        expr: feedesk_messaging_stale_claimed_jobs > 0
+        for: 5m
+        labels:
+          severity: critical
+          service: feedesk-worker
+        annotations:
+          summary: "FeeDesk has expired worker leases"
+          description: "A claimed job outlived its lease. Confirm the worker is dead before restarting."
+
+      - alert: FeeDeskFailedJobs
+        # Rolling 24h gauge: any failed job remains visible for 24h. This is
+        # intentionally noisy until a real failure counter exists.
+        expr: feedesk_messaging_failed_jobs_24h > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: feedesk-messaging
+        annotations:
+          summary: "FeeDesk has failed send jobs in the last 24 hours"
+          description: "Inspect last_error and the provider outage runbook. Do not bulk-resend."
+
+      - alert: FeeDeskUnknownOutcomes
+        expr: feedesk_messages_unknown_messages_24h > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: feedesk-messaging
+        annotations:
+          summary: "FeeDesk has unknown provider outcomes"
+          description: "Unknown outcomes require provider reconciliation. Do not blind-resend."
+
+      - alert: FeeDeskStuckSubmitting
+        expr: feedesk_messages_stuck_submitting_messages > 0
+        for: 10m
+        labels:
+          severity: critical
+          service: feedesk-messaging
+        annotations:
+          summary: "FeeDesk messages are stuck in submitting"
+          description: "Check whether a provider call is hung. Treat as unknown until reconciled."
+
+  - name: feedesk-capacity
+    rules:
+      - alert: FeeDeskDiskLow
+        expr: |
+          node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"}
+            / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"} < 0.15
+        for: 15m
+        labels:
+          severity: warning
+          service: feedesk-host
+        annotations:
+          summary: "FeeDesk host disk below 15%"
+          description: "Database, uploads, Docker images, and backups share this disk."
+
+      - alert: FeeDeskDiskCritical
+        expr: |
+          node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"}
+            / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"} < 0.10
+        for: 5m
+        labels:
+          severity: critical
+          service: feedesk-host
+        annotations:
+          summary: "FeeDesk host disk below 10%"
+          description: "Stop non-essential work and free space before PostgreSQL or Docker fails."
+
+      - alert: FeeDeskBackupStale
+        expr: time() - feedesk_backup_last_success_timestamp_seconds > 129600
+        for: 30m
+        labels:
+          severity: critical
+          service: feedesk-backup
+        annotations:
+          summary: "FeeDesk backup is older than 36 hours"
+          description: "Proposed RPO is 24 hours. Check feedesk-backup.timer and its logs."
+
+      - alert: FeeDeskBackupMetricMissing
+        expr: absent(feedesk_backup_last_success_timestamp_seconds)
+        for: 1h
+        labels:
+          severity: warning
+          service: feedesk-backup
+        annotations:
+          summary: "FeeDesk backup success metric is missing"
+          description: "The textfile metric is not being written. Backups may not be running."
+
+      - alert: FeeDeskDatabaseConnectionsHigh
+        expr: |
+          sum(pg_stat_database_numbackends) / max(pg_settings_max_connections) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          service: feedesk-db
+        annotations:
+          summary: "FeeDesk database connection usage above 80%"
+          description: "Check for stuck sessions or a connection leak before raising max_connections."
+
+  - name: feedesk-provider-balance
+    rules:
+      # This rule is inert until a read-only exporter emits the metric (blocked
+      # by G4). Keep the placeholder so the gap is visible in review.
+      - alert: FeeDeskProviderBalanceLow
+        expr: feedesk_provider_balance_credit < 100
+        for: 1h
+        labels:
+          severity: warning
+          service: feedesk-provider
+        annotations:
+          summary: "Rasel SMS balance is low"
+          description: "Top up before the next campaign. Threshold is a placeholder; confirm currency and pricing."

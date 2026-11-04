@@ -1,0 +1,70 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: feedesk
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - feedesk_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d feedesk"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - feedesk
+
+  api:
+    build:
+      context: ../../apps/api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD}@db:5432/feedesk
+      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET}
+      APP_ENV: production
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+      API_BASE_URL: ${API_BASE_URL:-http://localhost:8000}
+      UPLOAD_DIR: /data/uploads
+      # Behind HTTPS, switch to __Host-fd_session and COOKIE_SECURE=true.
+      COOKIE_NAME: fd_session
+      COOKIE_SECURE: "false"
+      RASEL_API_KEY: ${RASEL_API_KEY:-}
+      RASEL_BASE_URL: https://raselsms.com
+      RASEL_CHANNEL: local_sms
+      RASEL_SENDER_ID: ${RASEL_SENDER_ID:-}
+      SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:-admin}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?Set SEED_ADMIN_PASSWORD}
+    command: >
+      sh -c "alembic upgrade head &&
+             python -m app.seed &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    volumes:
+      - feedesk_uploads:/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - feedesk
+
+  web:
+    build:
+      context: ../../apps/web
+    restart: unless-stopped
+    environment:
+      API_INTERNAL_URL: http://api:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    networks:
+      - feedesk
+
+volumes:
+  feedesk_db:
+  feedesk_uploads:
+
+networks:
+  feedesk:
+    driver: bridge
